@@ -13,6 +13,10 @@ import io.netty.util.concurrent.GlobalEventExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+
 /**
  * 服务端处理通道.这里只是打印一下请求的内容，并不对请求进行任何的响应 DiscardServerHandler 继承自
  * ChannelHandlerAdapter， 这个类实现了ChannelHandler接口， ChannelHandler提供了许多事件处理的接口方法，
@@ -24,14 +28,19 @@ public class DiscardServerHandler extends SimpleChannelInboundHandler<Object> {
 
     public static ChannelGroup channels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
 
+    public static Map<String, ChannelHandlerContext> chan = new ConcurrentHashMap<>();
+    public static Map<String, String> user = new ConcurrentHashMap<>();
+
     @Override
     public void handlerAdded(ChannelHandlerContext ctx) throws Exception {  // (2)
         Channel incoming = ctx.channel();
 
         // Broadcast a message to multiple Channels
-        channels.writeAndFlush("[SERVER] - " + incoming.remoteAddress() + " 加入\n");
+        System.out.println("[SERVER] - " + incoming.id() + " 加入\n");
+        System.out.println("[SERVER] - " + incoming.remoteAddress() + " 加入\n");
 
-        channels.add(ctx.channel());
+//        channels.add(ctx.channel());
+        chan.put(incoming.id() + "", ctx);
     }
 
     @Override
@@ -39,7 +48,7 @@ public class DiscardServerHandler extends SimpleChannelInboundHandler<Object> {
         Channel incoming = ctx.channel();
 
         // Broadcast a message to multiple Channels
-        channels.writeAndFlush("[SERVER] - " + incoming.remoteAddress() + " 离开\n");
+        System.out.println("[SERVER] - " + incoming.remoteAddress() + " 离开\n");
 
         // A closed Channel is automatically removed from ChannelGroup,
         // so there is no need to do "channels.remove(ctx.channel());"
@@ -77,9 +86,19 @@ public class DiscardServerHandler extends SimpleChannelInboundHandler<Object> {
             };
 
             time.writeBytes(closeMsg);
-            // (3)
-            for (Channel channel : channels) {
-                channel.writeAndFlush(time + " " + channel.id());
+            // 绑定用户
+            if (msg.toString().contains("#")) {
+                String userId = msg.toString().replace("#", "");
+                user.put(userId, "" + ctx.channel().id());
+            }
+
+            String[] tar = msg.toString().split(":");
+            try {
+                String ch = user.get(tar[0]);
+                ChannelHandlerContext target = chan.get(ch);
+                target.writeAndFlush(tar[1]);
+            } catch (Exception e) {
+                ctx.writeAndFlush("not on line");
             }
         } finally {
             /**
@@ -94,7 +113,7 @@ public class DiscardServerHandler extends SimpleChannelInboundHandler<Object> {
 
     @Override
     protected void messageReceived(ChannelHandlerContext channelHandlerContext, Object s) throws Exception {
-
+        System.out.println("receive: " + s);
     }
 
     /**
