@@ -25,6 +25,28 @@ public class DiscardServerHandler extends SimpleChannelInboundHandler<Object> {
     public static ChannelGroup channels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
 
     @Override
+    public void handlerAdded(ChannelHandlerContext ctx) throws Exception {  // (2)
+        Channel incoming = ctx.channel();
+
+        // Broadcast a message to multiple Channels
+        channels.writeAndFlush("[SERVER] - " + incoming.remoteAddress() + " 加入\n");
+
+        channels.add(ctx.channel());
+    }
+
+    @Override
+    public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {  // (3)
+        Channel incoming = ctx.channel();
+
+        // Broadcast a message to multiple Channels
+        channels.writeAndFlush("[SERVER] - " + incoming.remoteAddress() + " 离开\n");
+
+        // A closed Channel is automatically removed from ChannelGroup,
+        // so there is no need to do "channels.remove(ctx.channel());"
+    }
+
+
+    @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         channels.add(ctx.channel());
         //为ByteBuf分配四个字节
