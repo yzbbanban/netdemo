@@ -1,12 +1,17 @@
 package com.yzb.common;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.channel.group.ChannelGroup;
+import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
+import io.netty.util.concurrent.GlobalEventExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,16 +20,18 @@ import org.slf4j.LoggerFactory;
  * ChannelHandlerAdapter， 这个类实现了ChannelHandler接口， ChannelHandler提供了许多事件处理的接口方法，
  * 然后你可以覆盖这些方法。 现在仅仅只需要继承ChannelHandlerAdapter类而不是你自己去实现接口方法。
  */
-public class DiscardServerHandler extends ChannelHandlerAdapter {
+public class DiscardServerHandler extends SimpleChannelInboundHandler<Object> {
 
     private Logger log = LoggerFactory.getLogger(this.getClass());
 
+    public static ChannelGroup channels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
+        channels.add(ctx.channel());
         //为ByteBuf分配四个字节
         ByteBuf time = ctx.alloc().buffer(4);
-        time.writeInt((int) (System.currentTimeMillis() / 1000L + 2208988800L));
+        time.writeInt(1);
         ctx.writeAndFlush(time);
         Thread.sleep(2000);
     }
@@ -40,9 +47,7 @@ public class DiscardServerHandler extends ChannelHandlerAdapter {
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
 
         try {
-            ByteBuf in = (ByteBuf) msg;
-            // 打印客户端输入，传输过来的的字符
-            System.out.print(in.toString(CharsetUtil.UTF_8));
+            System.out.println(msg);
             ByteBuf time = ctx.alloc().buffer(4);
             byte[] closeMsg = new byte[]{
                     //A区头部
@@ -53,7 +58,9 @@ public class DiscardServerHandler extends ChannelHandlerAdapter {
 
             time.writeBytes(closeMsg);
             // (3)
-            ctx.writeAndFlush(time);
+            for (Channel channel : channels) {
+                channel.writeAndFlush(time + " " + channel.id());
+            }
         } finally {
             /**
              * ByteBuf是一个引用计数对象，这个对象必须显示地调用release()方法来释放。
@@ -62,6 +69,11 @@ public class DiscardServerHandler extends ChannelHandlerAdapter {
             // 抛弃收到的数据
             ReferenceCountUtil.release(msg);
         }
+
+    }
+
+    @Override
+    protected void messageReceived(ChannelHandlerContext channelHandlerContext, Object s) throws Exception {
 
     }
 
@@ -85,13 +97,18 @@ public class DiscardServerHandler extends ChannelHandlerAdapter {
             IdleStateEvent event = (IdleStateEvent) evt;
             IdleState state = event.state();
             if (state == IdleState.READER_IDLE) {
+                ctx.writeAndFlush("no client");
                 loss_connect_time++;
-                log.info(String.valueOf(20 * loss_connect_time) + "秒没有接收到客户端的信息了");
-                if (loss_connect_time >= 20) {
+                log.info(String.valueOf(10 * loss_connect_time) + "秒没有接收到客户端的信息了");
+                if (loss_connect_time >= 100) {
                     log.info("------------服务器主动关闭客户端链路");
                     ctx.channel().close();
                 }
+            } else if (state == IdleState.WRITER_IDLE) {
+                ctx.writeAndFlush("no server link");
             }
+
+
         } else {
             super.userEventTriggered(ctx, evt);
         }

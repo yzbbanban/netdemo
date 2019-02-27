@@ -1,13 +1,18 @@
 package com.yzb.common;
 
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.EventLoopGroup;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.DelimiterBasedFrameDecoder;
+import io.netty.handler.codec.string.StringDecoder;
+import io.netty.handler.codec.string.StringEncoder;
+import io.netty.handler.timeout.IdleStateHandler;
+
+import java.util.concurrent.TimeUnit;
 
 /**
  * 丢弃任何进入的数据 启动服务端的DiscardServerHandler
@@ -49,25 +54,6 @@ public class DiscardServer {
              */
             b = b.channel(NioServerSocketChannel.class);
             /***
-             * 这里的事件处理类经常会被用来处理一个最近的已经接收的Channel。 ChannelInitializer是一个特殊的处理类，
-             * 他的目的是帮助使用者配置一个新的Channel。
-             * 也许你想通过增加一些处理类比如NettyServerHandler来配置一个新的Channel
-             * 或者其对应的ChannelPipeline来实现你的网络程序。 当你的程序变的复杂时，可能你会增加更多的处理类到pipline上，
-             * 然后提取这些匿名类到最顶层的类上。
-             */
-            b = b.childHandler(new ChannelInitializer<SocketChannel>() {
-                @Override
-                public void initChannel(SocketChannel ch) throws Exception {
-                    ch.pipeline().addLast(new DiscardServerHandler());
-                    // ch.pipeline().addLast(new
-                    // ResponseServerHandler());//demo2.echo
-                    // ch.pipeline().addLast(new
-                    // TimeServerHandler());//demo3.time
-
-                }
-            });
-            b=b.childHandler(new  NettyServerInitializer());
-            /***
              * 你可以设置这里指定的通道实现的配置参数。 我们正在写一个TCP/IP的服务端，
              * 因此我们被允许设置socket的参数选项比如tcpNoDelay和keepAlive。
              * 请参考ChannelOption和详细的ChannelConfig实现的接口文档以此可以对ChannelOptions的有一个大概的认识。
@@ -79,6 +65,19 @@ public class DiscardServer {
              * 在这个例子中也是NioServerSocketChannel。
              */
             b = b.childOption(ChannelOption.SO_KEEPALIVE, true);
+            /***
+             * 这里的事件处理类经常会被用来处理一个最近的已经接收的Channel。 ChannelInitializer是一个特殊的处理类，
+             * 他的目的是帮助使用者配置一个新的Channel。
+             * 也许你想通过增加一些处理类比如NettyServerHandler来配置一个新的Channel
+             * 或者其对应的ChannelPipeline来实现你的网络程序。 当你的程序变的复杂时，可能你会增加更多的处理类到pipline上，
+             * 然后提取这些匿名类到最顶层的类上。
+             */
+            b = b.childHandler(new ChannelInitializer<SocketChannel>() {
+                @Override
+                public void initChannel(SocketChannel ch) throws Exception {
+                    ch.pipeline().addLast(new NettyServerInitializer());
+                }
+            });
             /***
              * 绑定端口并启动去接收进来的连接
              */
