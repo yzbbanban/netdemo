@@ -90,16 +90,18 @@ public class DiscardServerHandler extends SimpleChannelInboundHandler<Object> {
             if (msg.toString().contains("#")) {
                 String userId = msg.toString().replace("#", "");
                 user.put(userId, "" + ctx.channel().id());
+                ctx.writeAndFlush("ok");
+            }else {
+                String[] tar = msg.toString().split(":");
+                try {
+                    String ch = user.get(tar[0]);
+                    ChannelHandlerContext target = chan.get(ch);
+                    target.writeAndFlush(tar[1]);
+                } catch (Exception e) {
+                    ctx.writeAndFlush("not on line");
+                }
             }
 
-            String[] tar = msg.toString().split(":");
-            try {
-                String ch = user.get(tar[0]);
-                ChannelHandlerContext target = chan.get(ch);
-                target.writeAndFlush(tar[1]);
-            } catch (Exception e) {
-                ctx.writeAndFlush("not on line");
-            }
         } finally {
             /**
              * ByteBuf是一个引用计数对象，这个对象必须显示地调用release()方法来释放。
