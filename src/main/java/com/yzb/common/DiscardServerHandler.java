@@ -8,14 +8,15 @@ import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Date;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 /**
  * 服务端处理通道.这里只是打印一下请求的内容，并不对请求进行任何的响应 DiscardServerHandler 继承自
@@ -65,57 +66,55 @@ public class DiscardServerHandler extends SimpleChannelInboundHandler<Object> {
         Thread.sleep(2000);
     }
 
-    /**
-     * 这里我们覆盖了chanelRead()事件处理方法。 每当从客户端收到新的数据时， 这个方法会在收到消息时被调用，
-     * 这个例子中，收到的消息的类型是ByteBuf
-     *
-     * @param ctx 通道处理的上下文信息
-     * @param msg 接收的消息
-     */
+
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) {
+    protected void messageReceived(ChannelHandlerContext ctx, Object msg) throws Exception {
+        //打印客户端输入，传输过来的的字符
+        System.out.println(msg);
 
+        ByteBuf in = (ByteBuf) msg;
+
+        int i = 0;
+        byte[] result = new byte[8];
         try {
-            System.out.println(msg);
-            ByteBuf time = ctx.alloc().buffer(4);
-            byte[] closeMsg = new byte[]{
-                    //A区头部
-                    (byte) 0xFF, (byte) 0x00,
-                    (byte) 0xAD,
-                    (byte) 0x07
-            };
-
-            time.writeBytes(closeMsg);
-            // 绑定用户
-            if (msg.toString().contains("#")) {
-                String userId = msg.toString().replace("#", "");
-                user.put(userId, "" + ctx.channel().id());
-                ctx.writeAndFlush("ok");
-            }else {
-                String[] tar = msg.toString().split(":");
-                try {
-                    String ch = user.get(tar[0]);
-                    ChannelHandlerContext target = chan.get(ch);
-                    target.writeAndFlush(tar[1]);
-                } catch (Exception e) {
-                    ctx.writeAndFlush("not on line");
-                }
+            while (in.isReadable()) {
+                byte b = in.readByte();
+                System.out.println(toHexString1(b));
+                result[i] = b;
+                i++;
             }
-
-        } finally {
-            /**
-             * ByteBuf是一个引用计数对象，这个对象必须显示地调用release()方法来释放。
-             * 请记住处理器的职责是释放所有传递到处理器的引用计数对象。
-             */
-            // 抛弃收到的数据
-            ReferenceCountUtil.release(msg);
+        } catch (Exception e) {
+            ctx.writeAndFlush("error");
         }
 
-    }
 
-    @Override
-    protected void messageReceived(ChannelHandlerContext channelHandlerContext, Object s) throws Exception {
-        System.out.println("receive: " + s);
+        ByteBuf buf = ctx.alloc().buffer(4);
+        byte[] closeMsg = new byte[]{
+                //A区头部
+                (byte) 0xFF, (byte) 0x00,
+                (byte) 0xAA,
+                (byte) 0x00
+        };
+
+
+        buf.writeBytes(result);
+        ctx.writeAndFlush(buf);
+//            // 绑定用户
+//            if (msg.toString().contains("#")) {
+//                String userId = msg.toString().replace("#", "");
+//                user.put(userId, "" + ctx.channel().id());
+//                ctx.writeAndFlush("ok");
+//            } else {
+//                String[] tar = msg.toString().split(":");
+//                try {
+//                    String ch = user.get(tar[0]);
+//                    ChannelHandlerContext target = chan.get(ch);
+//                    target.writeAndFlush(tar[1]);
+//                } catch (Exception e) {
+//                    ctx.writeAndFlush("not on line");
+//                }
+//            }
+
     }
 
     /**
@@ -172,6 +171,31 @@ public class DiscardServerHandler extends SimpleChannelInboundHandler<Object> {
         // 出现异常就关闭
         cause.printStackTrace();
         ctx.close();
+    }
+
+
+    /**
+     * 数组转成十六进制字符串
+     *
+     * @param b
+     * @return
+     */
+    public static String toHexString(byte[] b) {
+        StringBuffer buffer = new StringBuffer();
+        for (int i = 0; i < b.length; ++i) {
+            buffer.append(toHexString1(b[i]));
+        }
+        return buffer.toString();
+    }
+
+
+    public static String toHexString1(byte b) {
+        String s = Integer.toHexString(b & 0xFF);
+        if (s.length() == 1) {
+            return "0" + s;
+        } else {
+            return s;
+        }
     }
 
 }

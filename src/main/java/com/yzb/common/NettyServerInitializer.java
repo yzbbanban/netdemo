@@ -23,8 +23,8 @@ public class NettyServerInitializer extends ChannelInitializer<SocketChannel> {
                 10,
                 10,
                 TimeUnit.SECONDS));
-        pipeline.addLast("decoder", new StringDecoder());
-        pipeline.addLast("encoder", new StringEncoder());
+//        pipeline.addLast("decoder", new StringDecoder());
+//        pipeline.addLast("encoder", new StringEncoder());
         // Handler 处理
         pipeline.addLast(new DiscardServerHandler());
     }
